@@ -269,6 +269,12 @@ class mpvAudioPlayer {
 
     getSupportedPlaybackRates() {
         return [{
+            name: '0.05x',
+            id: 0.05
+        }, {
+            name: '0.25x',
+            id: 0.25
+        }, {
             name: '0.5x',
             id: 0.5
         }, {
