@@ -14,38 +14,30 @@ function(copy_resources target)
   if(XCODE)
     return()
   endif()
-  
+
   get_property(RESOURCE_LIST GLOBAL PROPERTY _${target}_RESOURCE_LIST)
 
   if(RESOURCE_LIST)
-    set_policy(CMP0026 OLD)
-
-    # we read the LOCATION from the target instead of using a generator
-    # here since add_custom_command doesn't support generator expresessions
-    # in the output field, and this is still cleaner than hardcoding the path
-    # of the output binary.
-    #
-    get_property(TARGET_LOC TARGET ${target} PROPERTY LOCATION)
-    get_filename_component(TARGET_DIR ${TARGET_LOC} DIRECTORY)
+    # Use generator expression instead of deprecated LOCATION property
     if(APPLE)
-      set(TARGET_LOC ${TARGET_DIR}/..)
+      set(TARGET_LOC $<TARGET_FILE_DIR:${target}>/..)
     else()
-      set(TARGET_LOC ${TARGET_DIR})
+      set(TARGET_LOC $<TARGET_FILE_DIR:${target}>)
     endif()
 
+    set(COPY_COMMANDS "")
     foreach(RF ${RESOURCE_LIST})
       string(REPLACE "|" ";" PARTS "${RF}")
       list(GET PARTS 0 SOURCE_FILE)
       list(GET PARTS 1 _TARGET_FILE)
-      set(TARGET_FILE ${TARGET_LOC}/${_TARGET_FILE})
-      add_custom_command(OUTPUT ${TARGET_FILE}
-                         COMMAND ${CMAKE_COMMAND} -E copy "${SOURCE_FILE}" "${TARGET_FILE}"
-                         DEPENDS ${SOURCE_FILE}
-                         COMMENT "CopyResource (${target}): ${TARGET_FILE}")
-      list(APPEND RESOURCES ${TARGET_FILE})
+
+      list(APPEND COPY_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SOURCE_FILE}" "${TARGET_LOC}/${_TARGET_FILE}")
     endforeach()
-    add_custom_target(${target}_CopyResources DEPENDS ${RESOURCES})
-    add_dependencies(${target} ${target}_CopyResources)
+
+    # Always check and copy resources if different - simple and efficient
+    add_custom_target(${target}_CopyResources ALL
+                      ${COPY_COMMANDS}
+                      COMMENT "Copying resources for ${target}")
   endif(RESOURCE_LIST)
 endfunction()
 

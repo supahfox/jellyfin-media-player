@@ -6,9 +6,11 @@
 #include <QIcon>
 #include <QtQml>
 #include <QtWebEngine/qtwebengineglobal.h>
+#include <QtWebEngineWidgets/QWebEngineProfile>
 #include <QErrorMessage>
 #include <QCommandLineOption>
 #include <QDebug>
+#include <QSettings>
 
 #include "shared/Names.h"
 #include "system/SystemComponent.h"
@@ -99,7 +101,6 @@ int main(int argc, char *argv[])
                        {"tv",                      "Start in TV mode"},
                        {"windowed",                "Start in windowed mode"},
                        {"fullscreen",              "Start in fullscreen"},
-                       {"terminal",                "Log to terminal"},
                        {"disable-gpu",             "Disable QtWebEngine gpu accel"},
                        {"force-external-webclient","Use webclient provided by server"}});
 
@@ -107,16 +108,25 @@ int main(int argc, char *argv[])
                                                           "the scale (DPI) of the desktop interface.");
     scaleOption.setValueName("scale");
     scaleOption.setDefaultValue("auto");
-    
+
     auto platformOption = QCommandLineOption("platform", "Equivalant to QT_QPA_PLATFORM.");
     platformOption.setValueName("platform");
     platformOption.setDefaultValue("default");
 
     auto devOption = QCommandLineOption("remote-debugging-port", "Port number for devtools.");
     devOption.setValueName("port");
+
+    auto configDirOption = QCommandLineOption("config-dir", "Override config directory path.");
+    configDirOption.setValueName("path");
+
+    auto logLevelOption = QCommandLineOption("log-level", "Log level: debug, info, warn, error, fatal (default: error)");
+    logLevelOption.setValueName("level");
+
     parser.addOption(scaleOption);
     parser.addOption(devOption);
     parser.addOption(platformOption);
+    parser.addOption(configDirOption);
+    parser.addOption(logLevelOption);
 
     char **newArgv = appendCommandLineArguments(argc, argv, g_qtFlags);
     int newArgc = argc + g_qtFlags.size();
@@ -155,6 +165,18 @@ int main(int argc, char *argv[])
       return EXIT_SUCCESS;
     }
 
+    QString logLevel = parser.value("log-level");
+    if (parser.isSet("log-level") && (logLevel.isEmpty() || Log::ParseLogLevel(logLevel) == -1))
+    {
+      fprintf(stderr, "Error: invalid log level '%s'. Valid levels: debug, info, warn, error, fatal\n", qPrintable(logLevel));
+      return EXIT_FAILURE;
+    }
+
+    if (parser.isSet("log-level"))
+      Log::SetLogLevel(logLevel);
+
+    Log::Init();
+
     auto scale = parser.value("scale-factor");
     if (scale.isEmpty() || scale == "auto")
       QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
@@ -167,8 +189,33 @@ int main(int argc, char *argv[])
       qputenv("QT_QPA_PLATFORM", platform.toUtf8());
     }
 
+    auto configDir = parser.value("config-dir");
+    QString webEngineDataDir;
+    if (!configDir.isEmpty())
+    {
+      QFileInfo fi(configDir);
+      QString absPath = fi.absoluteFilePath();
+      QDir parentDir = fi.dir();
+
+      if (!parentDir.exists())
+      {
+        qFatal("Config directory parent does not exist: %s", qPrintable(parentDir.absolutePath()));
+      }
+
+      Paths::setConfigDir(absPath);
+      QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, absPath);
+      webEngineDataDir = absPath + "/QtWebEngine";
+    }
+    else
+    {
+      // Use Paths::dataDir() equivalent inline to avoid double nesting
+      QDir d(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation));
+      d.mkpath(d.absolutePath() + "/" + Names::MainName());
+      d.cd(Names::MainName());
+      webEngineDataDir = d.absolutePath() + "/QtWebEngine";
+    }
+
     QApplication app(newArgc, newArgv);
-    app.setApplicationName("Jellyfin Media Player");
 
 #if defined(Q_OS_WIN) 
     // Setting window icon on OSX will break user ability to change it
@@ -188,17 +235,20 @@ int main(int argc, char *argv[])
 
     UniqueApplication* uniqueApp = new UniqueApplication();
     if (!uniqueApp->ensureUnique())
+    {
+      Log::Cleanup();
       return EXIT_SUCCESS;
+    }
+
+    Log::RotateLog();
+
+    qInfo() << "Config directory:" << qPrintable(Paths::dataDir());
 
 #ifdef Q_OS_UNIX
     // install signals handlers for proper app closing.
     SignalManager signalManager(&app);
     Q_UNUSED(signalManager);
 #endif
-
-    Log::Init();
-    if (parser.isSet("terminal"))
-      Log::EnableTerminalOutput();
 
     detectOpenGLLate();
 
@@ -209,9 +259,16 @@ int main(int argc, char *argv[])
     //
     ComponentManager::Get().initialize();
 
+    Log::ApplyConfigLogLevel();
+
     SettingsComponent::Get().setCommandLineValues(parser.optionNames());
 
     QtWebEngine::initialize();
+
+    // Configure QtWebEngine paths
+    QWebEngineProfile* defaultProfile = QWebEngineProfile::defaultProfile();
+    defaultProfile->setCachePath(webEngineDataDir);
+    defaultProfile->setPersistentStoragePath(webEngineDataDir);
 
     // load QtWebChannel so that we can register our components with it.
     QQmlApplicationEngine *engine = Globals::Engine();
@@ -240,8 +297,6 @@ int main(int argc, char *argv[])
     });
     engine->load(QUrl(QStringLiteral("qrc:/ui/webview.qml")));
 
-    Log::UpdateLogLevel();
-
     // run our application
     int ret = app.exec();
 
@@ -249,7 +304,6 @@ int main(int argc, char *argv[])
     Globals::EngineDestroy();
 
     Codecs::Uninit();
-    Log::Uninit();
     return ret;
   }
   catch (FatalException& e)
@@ -263,7 +317,6 @@ int main(int argc, char *argv[])
     errApp.exec();
 
     Codecs::Uninit();
-    Log::Uninit();
     return 1;
   }
 }
