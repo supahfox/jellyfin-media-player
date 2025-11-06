@@ -1,5 +1,5 @@
 /* eslint-disable indent */
-
+(function() {
     function getMediaStreamAudioTracks(mediaSource) {
         return mediaSource.MediaStreams.filter(function (s) {
             return s.Type === 'Audio';
@@ -709,6 +709,18 @@
         }, {
             name: '2x',
             id: 2.0
+        }, {
+            name: '2.5x',
+            id: 2.5
+        }, {
+            name: '3x',
+            id: 3.0
+        }, {
+            name: '3.5x',
+            id: 3.5
+        }, {
+            name: '4.0x',
+            id: 4.0
         }];
     }
 
@@ -853,3 +865,4 @@
 /* eslint-enable indent */
 
 window._mpvVideoPlayer = mpvVideoPlayer;
+})();
