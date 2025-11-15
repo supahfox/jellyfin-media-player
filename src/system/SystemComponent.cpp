@@ -17,6 +17,7 @@
 #include <QSslError>
 #include <QDebug>
 #include <QRegularExpression>
+#include <QPointer>
 #include <functional>
 
 #include "input/InputComponent.h"
@@ -41,6 +42,7 @@ QMap<SystemComponent::PlatformType, QString> g_platformTypeNames = { \
   { SystemComponent::platformTypeWindows, "windows" },
   { SystemComponent::platformTypeLinux, "linux" },
   { SystemComponent::platformTypeOpenELEC, "openelec" },
+  { SystemComponent::platformTypeFreeBSD, "freebsd" },
   { SystemComponent::platformTypeUnknown, "unknown" },
 };
 
@@ -78,6 +80,8 @@ SystemComponent::SystemComponent(QObject* parent) : ComponentBase(parent), m_pla
   m_platformType = platformTypeOpenELEC;
 #elif defined(Q_OS_LINUX)
   m_platformType = platformTypeLinux;
+#elif defined(Q_OS_FREEBSD)
+  m_platformType = platformTypeFreeBSD;
 #endif
 
 // define target type
@@ -271,9 +275,10 @@ QSslConfiguration SystemComponent::getSSLConfiguration()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void SystemComponent::setReplyTimeout(QNetworkReply* reply, int ms)
 {
-  QTimer::singleShot(ms, this, [reply]() {
-    if (!reply->isFinished()) {
-      reply->abort();
+  QPointer<QNetworkReply> replyPtr(reply);
+  QTimer::singleShot(ms, this, [replyPtr]() {
+    if (replyPtr && !replyPtr->isFinished()) {
+      replyPtr->abort();
     }
   });
 }
