@@ -47,8 +47,6 @@ public:
   QString extractBaseUrl(const QString& url);
   void resolveUrl(const QString& url, std::function<void(const QString&)> callback);
 
-  Q_INVOKABLE void setCursorVisibility(bool visible);
-
   Q_INVOKABLE QString getUserAgent();
 
   Q_INVOKABLE QString debugInformation();
@@ -105,7 +103,6 @@ public:
   bool isWebClientConnected() const { return !m_webClientVersion.isEmpty(); }
 
   inline QString authenticationToken() { return m_authenticationToken; }
-  inline bool cursorVisible() { return m_cursorVisible; }
 
   Q_INVOKABLE void crashApp();
 
@@ -131,14 +128,12 @@ private:
   QSslConfiguration getSSLConfiguration();
   void setReplyTimeout(QNetworkReply* reply, int ms);
 
-  QTimer* m_mouseOutTimer;
   QNetworkAccessManager* m_networkManager;
   PlatformType m_platformType;
   PlatformArch m_platformArch;
   bool m_doLogMessages;
   QString m_authenticationToken;
   QString m_webClientVersion;
-  bool m_cursorVisible;
   qreal m_scale;
   QNetworkReply* m_connectivityCheckReply;
   QNetworkReply* m_resolveUrlReply;

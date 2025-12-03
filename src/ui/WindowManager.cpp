@@ -6,7 +6,9 @@
 #include "display/DisplayComponent.h"
 #include "taskbar/TaskbarComponent.h"
 #include "input/InputComponent.h"
+#include "utils/Utils.h"
 
+#include <QCursor>
 #include <QGuiApplication>
 #include <QScreen>
 #include <QDebug>
@@ -22,9 +24,12 @@ WindowManager& WindowManager::Get()
 WindowManager::WindowManager(QObject* parent)
   : ComponentBase(parent),
     m_window(nullptr),
+    m_webView(nullptr),
+    m_enforcingZoom(false),
     m_ignoreFullscreenSettingsChange(0),
     m_maximized(false),
     m_fullscreen(false),
+    m_cursorVisible(true),
     m_geometryChangeTimer(nullptr)
 {
 }
@@ -118,6 +123,14 @@ void WindowManager::initializeWindow(QQuickWindow* window)
   // Connect to application shutdown
   connect(qApp, &QGuiApplication::aboutToQuit,
           this, &WindowManager::saveGeometrySlot);
+
+  // Find web view and connect to zoom changes
+  m_webView = m_window->findChild<QQuickItem*>("web");
+  if (m_webView)
+  {
+    connect(m_webView, SIGNAL(zoomFactorChanged()), this, SLOT(onZoomFactorChanged()));
+    enforceZoom();
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -197,6 +210,25 @@ void WindowManager::toggleFullscreen()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::setCursorVisibility(bool visible)
+{
+  if (visible == m_cursorVisible)
+    return;
+
+  m_cursorVisible = visible;
+
+  if (visible)
+    qApp->restoreOverrideCursor();
+  else
+    qApp->setOverrideCursor(QCursor(Qt::BlankCursor));
+
+#ifdef Q_OS_MAC
+  OSXUtils::SetCursorVisible(visible);
+#endif
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 void WindowManager::raiseWindow()
 {
   if (!m_window)
@@ -204,7 +236,7 @@ void WindowManager::raiseWindow()
 
   // Restore from minimized state if needed
   if (m_window->windowState() & Qt::WindowMinimized)
-    m_window->setWindowState((Qt::WindowState)(m_window->windowState() & ~Qt::WindowMinimized));
+    m_window->setWindowState(static_cast<Qt::WindowState>(m_window->windowState() & ~Qt::WindowMinimized));
 
   // Raise and request activation
   // Note: Wayland blocks requestActivate() for security (prevents focus stealing)
@@ -367,6 +399,10 @@ void WindowManager::updateMainSectionSettings(const QVariantMap& values)
     if (!url.isEmpty())
       m_window->setProperty("webUrl", url);
   }
+
+  // Browser zoom
+  if (values.contains("allowBrowserZoom"))
+    enforceZoom();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -604,4 +640,29 @@ void WindowManager::applySettings()
   values["startupurl"] = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "startupurl");
 
   updateMainSectionSettings(values);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::onZoomFactorChanged()
+{
+  enforceZoom();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::enforceZoom()
+{
+  if (!m_webView || m_enforcingZoom)
+    return;
+
+  bool allowZoom = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "allowBrowserZoom").toBool();
+  if (!allowZoom)
+  {
+    qreal currentZoom = m_webView->property("zoomFactor").toReal();
+    if (currentZoom != 1.0)
+    {
+      m_enforcingZoom = true;
+      m_webView->setProperty("zoomFactor", 1.0);
+      m_enforcingZoom = false;
+    }
+  }
 }

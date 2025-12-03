@@ -165,9 +165,24 @@ Window
     id: action_forward
   }
 
+  Action
+  {
+    enabled: mainWindow.webDesktopMode
+    shortcut: "Ctrl+0"
+    onTriggered: web.zoomFactor = 1.0
+  }
+
   WebChannel
   {
     id: webChannelObject
+  }
+
+  Binding
+  {
+    target: web
+    property: "zoomFactor"
+    value: 1.0
+    when: !components.settings.allowBrowserZoom()
   }
 
   MpvVideoItem
@@ -197,6 +212,11 @@ Window
     height: mainWindow.height
     z: 100
     backgroundColor: "transparent"
+
+    // this is needed to prevent intermittent(?) black screens when unminizing
+    // or resumsing from suspend (linux/{x11/wayland}, possibly others).
+    layer.enabled: true
+
     webChannel: webChannelObject
     settings.errorPageEnabled: false
     settings.localContentCanAccessRemoteUrls: true

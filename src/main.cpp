@@ -1,5 +1,3 @@
-#include <locale.h>
-
 #include <QGuiApplication>
 #include <QApplication>
 #include <QFileInfo>
@@ -66,9 +64,9 @@ static void preinitQt()
 /////////////////////////////////////////////////////////////////////////////////////////
 char** appendCommandLineArguments(int argc, char **argv, const QStringList& args)
 {
-  size_t newSize = (argc + args.length() + 1) * sizeof(char*);
-  char** newArgv = (char**)calloc(1, newSize);
-  memcpy(newArgv, argv, (size_t)(argc * sizeof(char*)));
+  size_t newSize = static_cast<size_t>(argc + args.length() + 1) * sizeof(char*);
+  char** newArgv = static_cast<char**>(calloc(1, newSize));
+  memcpy(newArgv, argv, static_cast<size_t>(argc) * sizeof(char*));
 
   int pos = argc;
   for(const QString& str : args)
@@ -139,13 +137,6 @@ int main(int argc, char *argv[])
 
     char **newArgv = appendCommandLineArguments(argc, argv, g_qtFlags);
     int newArgc = argc + g_qtFlags.size();
-
-    // Qt calls setlocale(LC_ALL, "") in a bunch of places, which breaks
-    // float/string processing in mpv and ffmpeg.
-#ifdef Q_OS_UNIX
-    qputenv("LC_ALL", "C");
-    qputenv("LC_NUMERIC", "C");
-#endif
 
     preinitQt();
     detectOpenGLEarly();
@@ -239,10 +230,21 @@ int main(int argc, char *argv[])
       webEngineDataDir = d.absolutePath() + "/QtWebEngine";
     }
 
+    QStringList chromiumFlags;
 #ifdef Q_OS_LINUX
     // Disable QtWebEngine's automatic MPRIS registration - we handle it ourselves
-    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-features=MediaSessionService,HardwareMediaKeyHandling");
+    chromiumFlags << "--disable-features=MediaSessionService,HardwareMediaKeyHandling";
 #endif
+    // Disable pinch-to-zoom if browser zoom is not allowed
+    QVariant allowZoom = SettingsComponent::readPreinitValue(SETTINGS_SECTION_MAIN, "allowBrowserZoom");
+    if (allowZoom.isValid() && !allowZoom.toBool())
+      chromiumFlags << "--disable-pinch";
+
+    if (!chromiumFlags.isEmpty())
+      qputenv("QTWEBENGINE_CHROMIUM_FLAGS", chromiumFlags.join(" ").toUtf8());
+
+    if (parser.isSet("remote-debugging-port"))
+      qputenv("QTWEBENGINE_REMOTE_DEBUGGING", parser.value("remote-debugging-port").toUtf8());
 
     QtWebEngineQuick::initialize();
     QApplication app(newArgc, newArgv);
@@ -328,7 +330,7 @@ int main(int argc, char *argv[])
       public:
         PopupFixer(QQuickWindow* mainWin) : m_mainWindow(mainWin) {}
         bool eventFilter(QObject* obj, QEvent* event) override {
-          QWindow* win = qobject_cast<QWindow*>(obj);
+          auto* win = qobject_cast<QWindow*>(obj);
           if (!win || win == m_mainWindow) {
             return QObject::eventFilter(obj, event);
           }

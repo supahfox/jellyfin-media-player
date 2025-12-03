@@ -31,7 +31,6 @@
 #include "utils/Utils.h"
 #include "utils/Log.h"
 
-#define MOUSE_TIMEOUT 5 * 1000
 
 #define KONVERGO_PRODUCTID_DEFAULT  3
 #define KONVERGO_PRODUCTID_OPENELEC 4
@@ -56,12 +55,8 @@ QMap<SystemComponent::PlatformArch, QString> g_platformArchNames = {
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-SystemComponent::SystemComponent(QObject* parent) : ComponentBase(parent), m_platformType(platformTypeUnknown), m_platformArch(platformArchUnknown), m_doLogMessages(false), m_cursorVisible(true), m_scale(1), m_connectivityCheckReply(nullptr), m_resolveUrlReply(nullptr)
+SystemComponent::SystemComponent(QObject* parent) : ComponentBase(parent), m_platformType(platformTypeUnknown), m_platformArch(platformArchUnknown), m_doLogMessages(false), m_scale(1), m_connectivityCheckReply(nullptr), m_resolveUrlReply(nullptr)
 {
-  m_mouseOutTimer = new QTimer(this);
-  m_mouseOutTimer->setSingleShot(true);
-  connect(m_mouseOutTimer, &QTimer::timeout, [&] () { setCursorVisibility(false); });
-
   m_connectivityRetryTimer = new QTimer(this);
   m_connectivityRetryTimer->setSingleShot(true);
   connect(m_connectivityRetryTimer, &QTimer::timeout, [this]() {
@@ -85,7 +80,7 @@ SystemComponent::SystemComponent(QObject* parent) : ComponentBase(parent), m_pla
 #endif
 
 // define target type
-#if TARGET_RPI
+#ifdef TARGET_RPI
   m_platformArch = platformArchRpi2;
 #elif defined(Q_PROCESSOR_X86_32)
   m_platformArch = platformArchX86_32;
@@ -105,16 +100,13 @@ bool SystemComponent::componentInitialize()
   QDir().mkpath(Paths::dataDir("scripts"));
   QDir().mkpath(Paths::dataDir("sounds"));
 
-  // Hide mouse pointer on any keyboard input
-  connect(&InputComponent::Get(), &InputComponent::receivedInput, [=]() { setCursorVisibility(false); });
-
   return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 void SystemComponent::crashApp()
 {
-  *(volatile int*)nullptr=0;
+  *static_cast<volatile int*>(nullptr) = 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +114,6 @@ void SystemComponent::componentPostInitialize()
 {
   InputComponent::Get().registerHostCommand("crash!", this, "crashApp");
   InputComponent::Get().registerHostCommand("script", this, "runUserScript");
-  InputComponent::Get().registerHostCommand("message", this, "hostMessage");
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -427,35 +418,6 @@ void SystemComponent::cancelServerConnectivity()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void SystemComponent::setCursorVisibility(bool visible)
-{
-  if (SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "webMode") == "desktop")
-    visible = true;
-
-  if (visible == m_cursorVisible)
-    return;
-
-  m_cursorVisible = visible;
-
-  if (visible)
-  {
-    qApp->restoreOverrideCursor();
-    m_mouseOutTimer->start(MOUSE_TIMEOUT);
-  }
-  else
-  {
-    qApp->setOverrideCursor(QCursor(Qt::BlankCursor));
-    m_mouseOutTimer->stop();
-  }
-
-#ifdef Q_OS_MAC
-  // OSX notifications will reset the cursor image (without Qt's knowledge). The
-  // only thing we can do override this is using Cocoa's native cursor hiding.
-  OSXUtils::SetCursorVisible(visible);
-#endif
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 QString SystemComponent::getUserAgent()
 {
   QString osVersion = QSysInfo::productVersion();
@@ -603,10 +565,10 @@ QString SystemComponent::getNativeShellScript()
                                 QJsonDocument(clientData).toJson(QJsonDocument::Compact).toBase64() +
                                 "\"));\nwindow.jmpInfo = jmpInfo;\n";
 
-  auto loadScript = [](const QString& path) -> QString {
-    QFile file(path);
+  auto loadScript = [](const QString& scriptPath) -> QString {
+    QFile file(scriptPath);
     if (!file.open(QIODevice::ReadOnly)) {
-      qCritical() << "Failed to load" << path << "from qrc";
+      qCritical() << "Failed to load" << scriptPath << "from qrc";
       return "";
     }
     return QTextStream(&file).readAll();

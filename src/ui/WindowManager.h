@@ -2,6 +2,7 @@
 #define WINDOWMANAGER_H
 
 #include <QObject>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QRect>
 #include <QScreen>
@@ -43,6 +44,9 @@ public:
   Q_INVOKABLE void setFullScreen(bool enable);
   Q_INVOKABLE bool isFullScreen() const;
 
+  // Cursor visibility
+  Q_INVOKABLE void setCursorVisibility(bool visible);
+
   // Window activation
   Q_INVOKABLE void raiseWindow();
 
@@ -61,6 +65,7 @@ private slots:
   void updateMainSectionSettings(const QVariantMap& values);
   void updateWindowState(bool saveGeo = true);
   void saveGeometrySlot();
+  void onZoomFactorChanged();
 
 private:
   // Geometry
@@ -80,12 +85,17 @@ private:
   void connectSettings();
   void applySettings();
 
+  void enforceZoom();
+
   QQuickWindow* m_window;
+  QQuickItem* m_webView;
+  bool m_enforcingZoom;
   QString m_currentScreenName;
   int m_ignoreFullscreenSettingsChange;
   QRect m_normalGeometry;
   bool m_maximized;
   bool m_fullscreen;
+  bool m_cursorVisible;
   QTimer* m_geometryChangeTimer;
   QRect m_pendingGeometry;
 };

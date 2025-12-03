@@ -3,13 +3,13 @@
 //
 
 #include "EventFilter.h"
-#include "system/SystemComponent.h"
 #include "settings/SettingsComponent.h"
 #include "input/InputKeyboard.h"
 #include <QQuickWindow>
 #include <QQuickItem>
 
 #include <QKeyEvent>
+#include <QWheelEvent>
 #include <QObject>
 
 static QStringList desktopWhiteListedKeys = { "Media Play",
@@ -116,10 +116,29 @@ bool EventFilter::eventFilter(QObject* watched, QEvent* event)
       }
     }
 
+    // Block zoom keyboard shortcuts when zoom is disabled (but allow Ctrl+0 reset)
+    bool allowZoom = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "allowBrowserZoom").toBool();
+    if (!allowZoom && (event->type() == QEvent::KeyPress || event->type() == QEvent::ShortcutOverride))
+    {
+      QKeyEvent* key = dynamic_cast<QKeyEvent*>(event);
+      if (key && (key->modifiers() & Qt::ControlModifier))
+      {
+        if (key->key() == Qt::Key_Plus || key->key() == Qt::Key_Equal ||
+            key->key() == Qt::Key_Minus)
+          return true;
+      }
+    }
+
+    // Block Ctrl+scroll zoom when zoom is disabled
+    if (!allowZoom && event->type() == QEvent::Wheel)
+    {
+      QWheelEvent* wheel = dynamic_cast<QWheelEvent*>(event);
+      if (wheel && (wheel->modifiers() & Qt::ControlModifier))
+        return true;
+    }
+
     return QObject::eventFilter(watched, event);
   }
-
-  SystemComponent& system = SystemComponent::Get();
 
   // ignore mouse events if mouse is disabled
   if  (SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "disablemouse").toBool() &&
@@ -172,16 +191,11 @@ bool EventFilter::eventFilter(QObject* watched, QEvent* event)
     else
       m_currentKeyDown = false;
 
-    system.setCursorVisibility(false);
     if (kevent->spontaneous() && !kevent->isAutoRepeat())
     {
       InputKeyboard::Get().keyPress(keyName, keystatus);
       return true;
     }
-  }
-  else if (event->type() == QEvent::MouseMove)
-  {
-    system.setCursorVisibility(true);
   }
   else if (event->type() == QEvent::Wheel)
   {
