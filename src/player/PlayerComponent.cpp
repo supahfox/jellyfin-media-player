@@ -204,17 +204,17 @@ void PlayerComponent::initializeMpv()
   setSubtitleConfiguration();
   setOtherConfiguration();
 
-  connect(SettingsComponent::Get().getSection(SETTINGS_SECTION_AUDIO), &SettingsSection::valuesUpdated,
-          this, &PlayerComponent::updateAudioConfiguration);
+  if (auto* s = SettingsComponent::Get().getSection(SETTINGS_SECTION_AUDIO))
+    connect(s, &SettingsSection::valuesUpdated, this, &PlayerComponent::updateAudioConfiguration);
 
-  connect(SettingsComponent::Get().getSection(SETTINGS_SECTION_VIDEO), &SettingsSection::valuesUpdated,
-          this, &PlayerComponent::updateVideoConfiguration);
+  if (auto* s = SettingsComponent::Get().getSection(SETTINGS_SECTION_VIDEO))
+    connect(s, &SettingsSection::valuesUpdated, this, &PlayerComponent::updateVideoConfiguration);
 
-  connect(SettingsComponent::Get().getSection(SETTINGS_SECTION_SUBTITLES), &SettingsSection::valuesUpdated,
-          this, &PlayerComponent::updateSubtitleConfiguration);
+  if (auto* s = SettingsComponent::Get().getSection(SETTINGS_SECTION_SUBTITLES))
+    connect(s, &SettingsSection::valuesUpdated, this, &PlayerComponent::updateSubtitleConfiguration);
 
-  connect(SettingsComponent::Get().getSection(SETTINGS_SECTION_OTHER), &SettingsSection::valuesUpdated,
-          this, &PlayerComponent::updateConfiguration);
+  if (auto* s = SettingsComponent::Get().getSection(SETTINGS_SECTION_OTHER))
+    connect(s, &SettingsSection::valuesUpdated, this, &PlayerComponent::updateConfiguration);
 
   initializeCodecSupport();
   Codecs::initCodecs();
@@ -1284,15 +1284,15 @@ void PlayerComponent::setAudioConfiguration()
   // here for now. We might need to add support for DTS transcoding
   // if we see user requests for it.
   //
+  bool wasAc3Transcoding = m_doAc3Transcoding;
   m_doAc3Transcoding =
   (deviceType == AUDIO_DEVICE_TYPE_SPDIF &&
    SettingsComponent::Get().value(SETTINGS_SECTION_AUDIO, "passthrough.ac3").toBool());
-  if (m_doAc3Transcoding)
+  if (m_doAc3Transcoding && !wasAc3Transcoding)
   {
-    QString filterArgs = "";
-    m_mpv->command( QStringList() << "af" << "add" << ("lavcac3enc" + filterArgs));
+    m_mpv->command( QStringList() << "af" << "add" << "@ac3:lavcac3enc");
   }
-  else
+  else if (!m_doAc3Transcoding && wasAc3Transcoding)
   {
     m_mpv->command( QStringList() << "af" << "remove" << "@ac3");
   }
@@ -1383,7 +1383,7 @@ void PlayerComponent::updateVideoAspectSettings()
   QVariant mode = SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "aspect").toString();
   bool disableScaling = false;
   bool keepAspect = true;
-  QString forceAspect = "-1";
+  QString forceAspect = "no";
   double panScan = 0.0;
   if (mode == "custom")
   {
