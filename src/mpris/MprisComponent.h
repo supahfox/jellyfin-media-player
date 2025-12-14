@@ -37,8 +37,8 @@ public:
   bool fullscreen() const;
   void setFullscreen(bool value);
   bool hasTrackList() const { return false; }
-  QString identity() const { return "Jellyfin Media Player"; }
-  QString desktopEntry() const { return "jellyfinmediaplayer"; }
+  QString identity() const { return "Jellyfin"; }
+  QString desktopEntry() const { return "org.jellyfin.JellyfinDesktop"; }
   QStringList supportedUriSchemes() const { return QStringList(); }
   QStringList supportedMimeTypes() const { return QStringList(); }
 
@@ -126,6 +126,7 @@ private:
   void updateNavigationCapabilities();
 
   bool m_enabled;
+  QString m_serviceName;
   PlayerComponent* m_player;
   std::unique_ptr<MprisRootAdaptor> m_rootAdaptor;
   std::unique_ptr<MprisPlayerAdaptor> m_playerAdaptor;

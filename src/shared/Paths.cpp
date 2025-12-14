@@ -15,6 +15,7 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////
 static QString g_configDirOverride;
+static QString g_activeProfileId;
 
 /////////////////////////////////////////////////////////////////////////////////////////
 void Paths::setConfigDir(const QString& path)
@@ -26,13 +27,13 @@ void Paths::setConfigDir(const QString& path)
 static QDir writableLocation(QStandardPaths::StandardLocation loc)
 {
   QDir d(QStandardPaths::writableLocation(loc));
-  if (!d.mkpath(d.absolutePath() + "/" + Names::MainName()))
+  if (!d.mkpath(d.absolutePath() + "/" + Names::DataName()))
   {
     qWarning() << "Failed to create directory:" << d.absolutePath();
     return QDir();
   }
 
-  d.cd(Names::MainName());
+  d.cd(Names::DataName());
 
   return d;
 }
@@ -41,8 +42,8 @@ static QDir writableLocation(QStandardPaths::StandardLocation loc)
 // Try a couple of different strategies to find the file we are looking for.
 // 1) By looking next to the application binary
 // 2) By looking in binary/../Resources
-// 3) By looking in PREFIX/share/jellyfinmediaplayer
-// 4) By looking in PREFIX/jellyfinmediaplayer
+// 3) By looking in PREFIX/share/jellyfin-desktop
+// 4) By looking in PREFIX/jellyfin-desktop
 //
 QString Paths::resourceDir(const QString& file)
 {
@@ -52,8 +53,8 @@ QString Paths::resourceDir(const QString& file)
   QStringList possibleResourceDirs = {
     appResourceDir,
     appResourceDir + "../Resources/",
-    prefixDir + "/share/jellyfinmediaplayer/",
-    prefixDir + "/jellyfinmediaplayer/"
+    prefixDir + "/share/jellyfin-desktop/",
+    prefixDir + "/jellyfin-desktop/"
   };
 
   for (const auto& fileStr : possibleResourceDirs)
@@ -66,7 +67,7 @@ QString Paths::resourceDir(const QString& file)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-QString Paths::dataDir(const QString& file)
+QString Paths::globalDataDir(const QString& file)
 {
   QDir d;
 
@@ -90,7 +91,7 @@ QString Paths::dataDir(const QString& file)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-QString Paths::cacheDir(const QString& file)
+QString Paths::globalCacheDir(const QString& file)
 {
   QDir d = writableLocation(QStandardPaths::GenericCacheLocation);
   if (file.isEmpty())
@@ -99,25 +100,71 @@ QString Paths::cacheDir(const QString& file)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
+QString Paths::dataDir(const QString& file)
+{
+  // Use profile-specific directory when profile is active
+  if (!g_activeProfileId.isEmpty())
+  {
+    QDir d(globalDataDir("profiles/" + g_activeProfileId));
+    if (!d.mkpath(d.absolutePath()))
+    {
+      qWarning() << "Failed to create profile data directory:" << d.absolutePath();
+      return globalDataDir(file);
+    }
+
+    if (file.isEmpty())
+      return d.absolutePath();
+    return d.filePath(file);
+  }
+
+  // Fallback to global when no profile active
+  return globalDataDir(file);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QString Paths::cacheDir(const QString& file)
+{
+  // Use profile-specific directory when profile is active
+  if (!g_activeProfileId.isEmpty())
+  {
+    QDir d(globalCacheDir("profiles/" + g_activeProfileId));
+    if (!d.mkpath(d.absolutePath()))
+    {
+      qWarning() << "Failed to create profile cache directory:" << d.absolutePath();
+      return globalCacheDir(file);
+    }
+
+    if (file.isEmpty())
+      return d.absolutePath();
+    return d.filePath(file);
+  }
+
+  // Fallback to global when no profile active
+  return globalCacheDir(file);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
 QString Paths::logDir(const QString& file)
 {
 #ifdef Q_OS_MAC
+  // On macOS, logs go to ~/Library/Logs/
   QDir ldir = QDir(QStandardPaths::locate(QStandardPaths::HomeLocation, "", QStandardPaths::LocateDirectory));
-  ldir.mkpath(ldir.absolutePath() + "/Library/Logs/" + Names::MainName());
-  ldir.cd("Library/Logs/" + Names::MainName());
-  return ldir.filePath(file);
-#else
-  QDir ldir;
 
-  if (!g_configDirOverride.isEmpty())
+  if (!g_activeProfileId.isEmpty())
   {
-    ldir = QDir(g_configDirOverride);
+    ldir.mkpath(ldir.absolutePath() + "/Library/Logs/" + Names::DataName() + "/" + g_activeProfileId);
+    ldir.cd("Library/Logs/" + Names::DataName() + "/" + g_activeProfileId);
   }
   else
   {
-    ldir = writableLocation(QStandardPaths::GenericDataLocation);
+    ldir.mkpath(ldir.absolutePath() + "/Library/Logs/" + Names::DataName());
+    ldir.cd("Library/Logs/" + Names::DataName());
   }
 
+  return ldir.filePath(file);
+#else
+  // On other platforms, logs go to dataDir/logs/
+  QDir ldir(dataDir());
   ldir.mkpath(ldir.absolutePath() + "/logs");
   ldir.cd("logs");
   return ldir.filePath(file);
@@ -127,17 +174,16 @@ QString Paths::logDir(const QString& file)
 /////////////////////////////////////////////////////////////////////////////////////////
 QString Paths::socketName(const QString& serverName)
 {
-  QString userName = qgetenv("USER");
-
-  if(userName.isEmpty())
-    userName = qgetenv("USERNAME");
-  if(userName.isEmpty())
-    userName = "unknown";
+  QString profileId = g_activeProfileId.isEmpty() ? "default" : g_activeProfileId;
+  QString socketFile = QString("jellyfin-desktop.%1.%2").arg(profileId, serverName);
 
 #ifdef Q_OS_UNIX
-  return QString("/tmp/jmp_%1_%2.sock").arg(serverName).arg(userName);
+  QString runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+  if (runtimeDir.isEmpty())
+    runtimeDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+  return runtimeDir + "/" + socketFile;
 #else
-  return QString("jmp_%1_%2.sock").arg(serverName).arg(userName);
+  return socketFile;
 #endif
 }
 
@@ -173,4 +219,16 @@ QString Paths::webExtensionPath(const QString& mode)
 {
   QString webName = QString("web-client/%1").arg(mode);
   return resourceDir(webName + "/");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void Paths::setActiveProfileId(const QString& id)
+{
+  g_activeProfileId = id;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QString Paths::activeProfileId()
+{
+  return g_activeProfileId;
 }

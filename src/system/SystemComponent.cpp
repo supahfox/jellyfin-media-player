@@ -21,6 +21,8 @@
 #include <QPointer>
 #include <functional>
 
+#include <QtWebEngineCore/qtwebenginecoreglobal.h>
+
 #include "input/InputComponent.h"
 #include "SystemComponent.h"
 #include "Version.h"
@@ -405,16 +407,20 @@ void SystemComponent::cancelServerConnectivity()
     m_connectivityRetryTimer->stop();
   }
 
+  // Save pointers before abort() since it synchronously triggers finished handlers
+  // which may set member variables to nullptr
   if (m_resolveUrlReply) {
-    m_resolveUrlReply->abort();
-    m_resolveUrlReply->deleteLater();
+    QNetworkReply* reply = m_resolveUrlReply;
     m_resolveUrlReply = nullptr;
+    reply->abort();
+    reply->deleteLater();
   }
 
   if (m_connectivityCheckReply) {
-    m_connectivityCheckReply->abort();
-    m_connectivityCheckReply->deleteLater();
+    QNetworkReply* reply = m_connectivityCheckReply;
     m_connectivityCheckReply = nullptr;
+    reply->abort();
+    reply->deleteLater();
   }
 
   m_pendingConnectivityUrl.clear();
@@ -423,8 +429,14 @@ void SystemComponent::cancelServerConnectivity()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 QString SystemComponent::getUserAgent()
 {
-  QString osVersion = QSysInfo::productVersion();
-  QString userAgent = QString("JellyfinMediaPlayer %1 (%2-%3 %4)").arg(Version::GetVersionString()).arg(getPlatformTypeString()).arg(getPlatformArchString()).arg(osVersion);
+  QString kernel = QSysInfo::kernelType();
+  kernel[0] = kernel[0].toUpper();
+  QString chromeVersion = QString(qWebEngineChromiumVersion()).split('.').first() + ".0.0.0";
+  QString userAgent = QString("JellyfinDesktop/%1 (%2; %3) Chrome/%4")
+    .arg(Version::GetVersionString())
+    .arg(kernel)
+    .arg(getPlatformArchString())
+    .arg(chromeVersion);
   return userAgent;
 }
 
@@ -434,7 +446,7 @@ QString SystemComponent::debugInformation()
   QString debugInfo;
   QTextStream stream(&debugInfo);
 
-  stream << "Jellyfin Media Player\n";
+  stream << "Jellyfin\n";
   stream << "  Version: " << Version::GetVersionString() << " built: " << Version::GetBuildDate() << "\n";
   stream << "  Web Client Version: " << Version::GetWebVersion() << "\n";
   stream << "  Web Client URL: " << SettingsComponent::Get().value(SETTINGS_SECTION_PATH, "startupurl").toString() << "\n";
@@ -445,8 +457,8 @@ QString SystemComponent::debugInformation()
   stream << "\n";
 
   stream << "Files\n";
-  stream << "  Log file: " << Paths::logDir(Names::MainName() + ".log") << "\n";
-  stream << "  Config file: " << Paths::dataDir(Names::MainName() + ".conf") << "\n";
+  stream << "  Log file: " << Paths::logDir(Names::DataName() + ".log") << "\n";
+  stream << "  Config file: " << Paths::dataDir(Names::DataName() + ".conf") << "\n";
   stream << "\n";
 
   stream << "Network Addresses\n";
@@ -538,6 +550,8 @@ QString SystemComponent::getNativeShellScript()
 
   QJsonObject clientData;
   clientData.insert("deviceName", QJsonValue::fromVariant(SettingsComponent::Get().getClientName()));
+  clientData.insert("version", QJsonValue::fromVariant(Version::GetVersionString()));
+  clientData.insert("userAgent", QJsonValue::fromVariant(getUserAgent()));
   clientData.insert("scriptPath", QJsonValue::fromVariant("file:///" + path));
   QString defaultMode = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "layout").toString();
 
@@ -581,8 +595,8 @@ QString SystemComponent::getNativeShellScript()
     ":/qtwebchannel/qwebchannel.js",
     ":/web-client/extension/mpvVideoPlayer.js",
     ":/web-client/extension/mpvAudioPlayer.js",
-    ":/web-client/extension/jmpInputPlugin.js",
-    ":/web-client/extension/jmpUpdatePlugin.js",
+    ":/web-client/extension/inputPlugin.js",
+    ":/web-client/extension/updatePlugin.js",
     ":/web-client/extension/connectivityHelper.js",
     ":/web-client/extension/nativeshell.js"
   };
@@ -663,10 +677,11 @@ void SystemComponent::checkForUpdates()
   if (SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "checkForUpdates").toBool()) {
 #if !defined(Q_OS_WIN) && !defined(Q_OS_MAC)
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QString checkUrl = "https://github.com/jellyfin/jellyfin-media-player/releases/latest";
+    QString checkUrl = "https://github.com/jellyfin/jellyfin-desktop/releases/latest";
     QUrl qCheckUrl = QUrl(checkUrl);
     qDebug() << QString("Checking URL for updates: %1").arg(checkUrl);
     QNetworkRequest req(qCheckUrl);
+    req.setHeader(QNetworkRequest::UserAgentHeader, getUserAgent());
 
     connect(manager, &QNetworkAccessManager::finished, this, &SystemComponent::updateInfoHandler);
     manager->get(req);
