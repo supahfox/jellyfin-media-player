@@ -1,10 +1,7 @@
 # Jellyfin Desktop
+Jellyfin desktop client built with Qt WebEngine and [libmpv](https://github.com/mpv-player/mpv). Supports audio passthrough, hardware decoding, and playback of more formats without transcoding.
 
-Desktop client using jellyfin-web with embedded MPV player. Supports Windows, Mac OS,
-and Linux. Media plays within the same window using the jellyfin-web interface unlike
-Jellyfin Desktop. Supports audio passthrough.
-
-![Screenshot of Jellyfin Desktop](https://raw.githubusercontent.com/iwalton3/mpv-shim-misc-docs/master/images/jmp-player-win.png)
+![Screenshot of Jellyfin Desktop](screenshots/video_player.png)
 
 Downloads:
  - [Windows, Mac, and Linux Releases](https://github.com/jellyfin/jellyfin-desktop/releases)
@@ -124,19 +121,25 @@ ninja windows_package
 ```
 
 ## Building for MacOS
-
-Install [Qt 6](https://www.qt.io/download-thank-you?hsLang=en), remember to check `Qt WebEngine`.
-
-Then run the following commands (replace <QT_DIR> with your QT installation location):
-
 ```bash
-brew install mpv ninja qt
+# Install dependencies
+brew install aqtinstall mpv ninja
 
+# Download Qt
+aqt install-qt mac desktop 6.10.1 -m qtwebengine qtwebchannel qtpositioning
+export QTROOT="$(realpath 6.10.1/macos)"
+
+# Clone and build
 git clone --recursive https://github.com/jellyfin/jellyfin-desktop.git
 cd jellyfin-desktop
 
-cmake -B build -G Ninja -DUSE_STATIC_MPVQT=ON
-cmake --build build
+cmake -B build -G Ninja \
+  -DQTROOT="$QTROOT" \
+  -DCMAKE_PREFIX_PATH="$QTROOT" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=output \
+  -DUSE_STATIC_MPVQT=ON
+cmake --build build --target install
 ```
 
 ## Log File Location

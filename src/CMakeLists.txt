@@ -22,7 +22,10 @@ add_subdirectory(system)
 add_subdirectory(settings)
 add_subdirectory(power)
 add_subdirectory(taskbar)
-add_subdirectory(mpris)
+
+if(LINUX_DBUS)
+  add_subdirectory(mpris)
+endif()
 
 get_property(ALL_SRCS GLOBAL PROPERTY SRCS_LIST)
 set(MAIN_SRCS main.cpp)
@@ -125,9 +128,14 @@ get_property(BUNDLED_FILES GLOBAL PROPERTY CONFIG_BUNDLED_FILES)
 add_executable(${MAIN_TARGET} WIN32 MACOSX_BUNDLE ${MAIN_SRCS} ${BUNDLED_FILES} ${RESOURCE_FILES} ${XCODE_RESOURCES})
 add_dependencies(${MAIN_TARGET} generate_resources)
 std_target_properties(${MAIN_TARGET})
+if(APPLE)
+  set(_install_rpath "@executable_path/../Frameworks")
+else()
+  set(_install_rpath "${QTROOT}/lib")
+endif()
 set_target_properties(${MAIN_TARGET} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/bundle/osx/Info.plist.in
-  INSTALL_RPATH "${QTROOT}/lib"
+  INSTALL_RPATH "${_install_rpath}"
   OUTPUT_NAME ${MAIN_NAME}
 )
 copy_resources(${MAIN_TARGET})
@@ -186,9 +194,12 @@ target_link_libraries(jmp_core
   Qt6::OpenGL
   Qt6::Xml
   Qt6::Gui
-  Qt6::DBus
   ${MPVQT_TARGET}
 )
+
+if(LINUX_DBUS)
+  target_link_libraries(jmp_core Qt6::DBus)
+endif()
 
 target_link_libraries(${MAIN_TARGET} jmp_core)
 install(TARGETS ${MAIN_TARGET} DESTINATION ${INSTALL_BIN_DIR})

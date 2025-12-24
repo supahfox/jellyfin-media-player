@@ -1,14 +1,14 @@
 import QtQuick
 import Konvergo 1.0
 import QtWebEngine
-import QtWebChannel 1.0
-import QtQuick.Window 2.2
-import QtQuick.Controls 6.0
+import QtWebChannel
+import QtQuick.Window
+import QtQuick.Controls
 
 Window
 {
   id: mainWindow
-  title: "Jellyfin"
+  title: "Jellyfin Desktop"
   objectName: "mainWindow"
   width: 1280
   height: 720
