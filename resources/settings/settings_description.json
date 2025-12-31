@@ -658,6 +658,16 @@
     ]
   },
   {
+    "section": "albumart",
+    "hidden": true,
+    "values": [
+      {
+        "value": "cacheSize",
+        "default": 10485760
+      }
+    ]
+  },
+  {
     "section": "system",
     "hidden": true,
     "values": [

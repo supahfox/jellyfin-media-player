@@ -10,6 +10,7 @@
 
 #include "shared/Names.h"
 #include "shared/Paths.h"
+#include "core/ProfileManager.h"
 #include "settings/SettingsComponent.h"
 #include "Version.h"
 
@@ -57,16 +58,16 @@ static void qtMessageOutput(QtMsgType type, const QMessageLogContext& context, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-static void elidePattern(QString& msg, const QString& substring, int chars)
+static void elidePattern(QString& msg, const QString& substring, qsizetype chars)
 {
-  int start = 0;
+  qsizetype start = 0;
   while (true)
   {
     start = msg.indexOf(substring, start);
     if (start < 0 || start + substring.length() + chars > msg.length())
       break;
     start += substring.length();
-    for (int n = 0; n < chars; n++)
+    for (qsizetype n = 0; n < chars; n++)
       msg[start + n] = QChar('x');
   }
 }
@@ -87,8 +88,7 @@ void Log::CensorAuthTokens(QString& msg)
 /////////////////////////////////////////////////////////////////////////////////////////
 static QString getLogDir()
 {
-  // Paths::logDir() returns profile-specific path when profile is active
-  return Paths::logDir("");
+  return ProfileManager::activeProfile().logDir();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
