@@ -33,7 +33,7 @@ jobs:
           #   machine: ARM64
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
     - name: Install Qt 6
@@ -86,12 +86,12 @@ jobs:
         ninja windows_all
       shell: cmd
     - name: Archive installer
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.artifact }}-installer
         path: ${{ github.workspace }}/build/JellyfinDesktop-*.exe
     - name: Archive portable ZIP
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.artifact }}-portable
         path: ${{ github.workspace }}/build/JellyfinDesktop-*.zip

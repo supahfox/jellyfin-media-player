@@ -11,7 +11,7 @@ jobs:
         tag: [plucky, oracular, noble, jammy]
     runs-on: "ubuntu-latest"
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
     - name: Install dependencies
@@ -24,7 +24,7 @@ jobs:
         docker run -v $(pwd)/deployment/dist:/dist -v $(pwd):/jellyfin -e TAG=${{ matrix.tag }} -e IMG=ubuntu builddeb
         sudo chown --recursive $USER $(pwd)/deployment/dist
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ubuntu-${{ matrix.tag }}
         path: ${{ github.workspace }}/deployment/dist/*
@@ -41,7 +41,7 @@ jobs:
       run: |
         gpg --batch --yes --delete-secret-keys ${{ secrets.DEBIAN_SIGNING_KEY_ID }}
     - name: Upload artifacts to repository server
-      uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634 # v0.1.7
+      uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
       with:
         host: "${{ secrets.REPO_HOST }}"
         username: "${{ secrets.REPO_USER }}"
@@ -50,7 +50,7 @@ jobs:
         strip_components: 2
         target: "/srv/incoming/client/jellyfin-desktop/ubuntu/${{ matrix.tag }}"
     - name: Import artifactsinto reprepro
-      uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+      uses: appleboy/ssh-action@823bd89e131d8d508129f9443cad5855e9ba96f0 # v1.2.4
       with:
         host: "${{ secrets.REPO_HOST }}"
         username: "${{ secrets.REPO_USER }}"
@@ -63,7 +63,7 @@ jobs:
           sudo reprepro --waitforlock 30 --basedir /srv/ubuntu --component ${COMPONENT} includedeb ${{ matrix.tag }} /srv/incoming/client/jellyfin-desktop/ubuntu/${{ matrix.tag }}/*.deb || exit 1
           sudo reprepro --waitforlock 30 --basedir /srv/ubuntu --component ${COMPONENT} includedsc ${{ matrix.tag }} /srv/incoming/client/jellyfin-desktop/ubuntu/${{ matrix.tag }}/*.dsc || exit 1
     - name: Move artifacts into repository
-      uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+      uses: appleboy/ssh-action@823bd89e131d8d508129f9443cad5855e9ba96f0 # v1.2.4
       with:
         host: "${{ secrets.REPO_HOST }}"
         username: "${{ secrets.REPO_USER }}"
@@ -84,7 +84,7 @@ jobs:
         tag: [bookworm, trixie]
     runs-on: "ubuntu-latest"
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
     - name: Install dependencies
@@ -97,7 +97,7 @@ jobs:
         docker run -v $(pwd)/deployment/dist:/dist -v $(pwd):/jellyfin -e TAG=${{ matrix.tag }} -e IMG=debian builddeb
         sudo chown --recursive $USER $(pwd)/deployment/dist
     - name: Archive production artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: debian-${{ matrix.tag }}
         path: ${{ github.workspace }}/deployment/dist/*
@@ -114,7 +114,7 @@ jobs:
       run: |
         gpg --batch --yes --delete-secret-keys ${{ secrets.DEBIAN_SIGNING_KEY_ID }}
     - name: Upload artifacts to repository server
-      uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634 # v0.1.7
+      uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
       with:
         host: "${{ secrets.REPO_HOST }}"
         username: "${{ secrets.REPO_USER }}"
@@ -123,7 +123,7 @@ jobs:
         strip_components: 2
         target: "/srv/incoming/client/jellyfin-desktop/debian/${{ matrix.tag }}"
     - name: Import artifactsinto reprepro
-      uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+      uses: appleboy/ssh-action@823bd89e131d8d508129f9443cad5855e9ba96f0 # v1.2.4
       with:
         host: "${{ secrets.REPO_HOST }}"
         username: "${{ secrets.REPO_USER }}"
@@ -136,7 +136,7 @@ jobs:
           sudo reprepro --waitforlock 30 --basedir /srv/debian --component ${COMPONENT} includedeb ${{ matrix.tag }} /srv/incoming/client/jellyfin-desktop/debian/${{ matrix.tag }}/*.deb || exit 1
           sudo reprepro --waitforlock 30 --basedir /srv/debian --component ${COMPONENT} includedsc ${{ matrix.tag }} /srv/incoming/client/jellyfin-desktop/debian/${{ matrix.tag }}/*.dsc || exit 1
     - name: Move artifacts into repository
-      uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+      uses: appleboy/ssh-action@823bd89e131d8d508129f9443cad5855e9ba96f0 # v1.2.4
       with:
         host: "${{ secrets.REPO_HOST }}"
         username: "${{ secrets.REPO_USER }}"
